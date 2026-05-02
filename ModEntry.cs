@@ -33,7 +33,7 @@ namespace NightLight
 
         private void GameUpdated(object? sender, UpdateTickedEventArgs e)
         {
-            if (!Context.IsPlayerFree) return;
+            if (!Context.IsWorldReady) return;
 
             if (Config.NightLightEnabled) {
                 handleLighting();
