@@ -103,23 +103,35 @@ namespace NightLight
         }
 
         private void handleLighting() {
+            if (Game1.currentLocation == null) return;
 
-            // Toggle outdoors lighting
-            if (Config.NightLightOutdoors) {
+            bool isUnderground = Game1.currentLocation.Name.StartsWith("UndergroundMine")
+                || Game1.currentLocation.Name == "FarmCave";
 
-                // Get a reference to the game's ambientLight
-                IReflectedField<Color> ambientLight = this.Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
-                
+            int? darkness = null;
+            if (isUnderground && Config.NightLightUnderground)
+                darkness = Config.UndergroundDarkness;
+            else if (!isUnderground && Config.NightLightOutdoors)
+                darkness = Config.OutdoorsDarkness;
+
+            if (darkness == null || darkness >= 100) return;
+
+            IReflectedField<Color> ambientLight = this.Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
+
+            if (darkness <= 0) {
+                if (isUnderground) Game1.drawLighting = false;
                 ambientLight.SetValue(Color.Transparent);
-
+                return;
             }
 
-            // Toggle lighting within the mines and farm cave
-            if (Config.NightLightUnderground) {
-                if (Game1.currentLocation.Name.StartsWith("UndergroundMine") || Game1.currentLocation.Name == "FarmCave") {
-                    Game1.drawLighting = false;
-                }
-            }
+            Color current = ambientLight.GetValue();
+            float factor = darkness.Value / 100f;
+            ambientLight.SetValue(new Color(
+                (byte)(current.R * factor),
+                (byte)(current.G * factor),
+                (byte)(current.B * factor),
+                (byte)(current.A * factor)
+            ));
         }
 
         private void GameLaunched(object sender, GameLaunchedEventArgs e) {
@@ -170,6 +182,37 @@ namespace NightLight
                 tooltip: () => "Enables light on all floors of the mines (most notable on floors 30-39 of the regular mines) and inside the farm cave.",
                 getValue: () => this.Config.NightLightUnderground,
                 setValue: value => this.Config.NightLightUnderground = value
+            );
+
+            // Section Title For Darkness
+            configMenu.AddSectionTitle(
+                mod: this.ModManifest,
+                text: () => "Darkness Level",
+                tooltip: () => "How much darkness to apply when NightLight is active. 0 = full brightness, 100 = vanilla darkness."
+            );
+
+            // Outdoors Darkness Slider
+            configMenu.AddNumberOption(
+                mod: this.ModManifest,
+                name: () => "Outdoors Darkness",
+                tooltip: () => "How dark the world should appear at night. 0 = full brightness, 100 = vanilla nighttime darkness.",
+                getValue: () => this.Config.OutdoorsDarkness,
+                setValue: value => this.Config.OutdoorsDarkness = value,
+                min: 0,
+                max: 100,
+                interval: 1
+            );
+
+            // Underground Darkness Slider
+            configMenu.AddNumberOption(
+                mod: this.ModManifest,
+                name: () => "Underground Darkness",
+                tooltip: () => "How dark the mines and farm cave should appear. 0 = full brightness, 100 = vanilla underground darkness.",
+                getValue: () => this.Config.UndergroundDarkness,
+                setValue: value => this.Config.UndergroundDarkness = value,
+                min: 0,
+                max: 100,
+                interval: 1
             );
 
             // Section Title For Hotkeys
