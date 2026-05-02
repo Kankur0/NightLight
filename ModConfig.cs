@@ -2,9 +2,10 @@
 
 namespace NightLight
 {
-    internal class ModConfig
+    public class ModConfig
     {
         public bool NightLightEnabled { get; set; } = true;
+        public int DarknessPercentage { get; set; } = 50;
         public bool NightLightOutdoors {  get; set; } = true;
         public bool NightLightUnderground { get; set; } = true;
         public KeybindList NightLightToggleAllKey { get; set; } = KeybindList.Parse("LeftAlt + L");

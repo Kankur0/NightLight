@@ -11,7 +11,7 @@ namespace NightLight
     /// <summary>The mod entry point.</summary>
     internal sealed class ModEntry : Mod
     {
-        // Config fields
+        // Initialize the GMCM object
         private ModConfig Config = new();
 
         /*********
@@ -28,12 +28,12 @@ namespace NightLight
             // Set up events
             helper.Events.GameLoop.GameLaunched += GameLaunched;
             helper.Events.Input.ButtonsChanged += ButtonsChanged;
-            helper.Events.GameLoop.UpdateTicked += GameUpdated;
+            helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
         }
 
-        private void GameUpdated(object? sender, UpdateTickedEventArgs e)
+        private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
         {
-            if (!Context.IsPlayerFree) return;
+            if (!Context.IsWorldReady) return;
 
             if (Config.NightLightEnabled) {
                 handleLighting();
@@ -104,22 +104,56 @@ namespace NightLight
 
         private void handleLighting() {
 
-            // Toggle outdoors lighting
-            if (Config.NightLightOutdoors) {
-
-                // Get a reference to the game's ambientLight
-                IReflectedField<Color> ambientLight = this.Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
-                
-                ambientLight.SetValue(Color.Transparent);
-
+            // If mod is disabled, don't do anything
+            if (!Config.NightLightEnabled) {
+                return;
             }
 
-            // Toggle lighting within the mines and farm cave
+            // Handle underground lighting
             if (Config.NightLightUnderground) {
-                if (Game1.currentLocation.Name.StartsWith("UndergroundMine") || Game1.currentLocation.Name == "FarmCave") {
+                handleUnderground();
+            }
+            if (Config.NightLightOutdoors && Game1.currentLocation.IsOutdoors) {
+                applyLighting();
+            }
+        }
+
+        private void handleUnderground()
+        {
+            // Toggle lighting within the mines and farm cave
+            if (Config.NightLightUnderground)
+            {
+                if (Game1.currentLocation.Name.StartsWith("UndergroundMine") || Game1.currentLocation.Name == "FarmCave")
+                {
                     Game1.drawLighting = false;
                 }
             }
+        }
+
+        private void applyLighting() {
+            Color baseLight = Game1.outdoorLight;
+            float darknessIntensity = baseLight.A / 255f;
+            float userFactor = (float)Config.DarknessPercentage / 100f;
+
+            // If it is daytime, don't apply any changes to the ambient light
+            if (darknessIntensity < 0.01f || baseLight.R > 250 && baseLight.G > 250 && baseLight.B > 250) return;
+
+            // Don't apply changes to the ambient light if the player is in a cutscene, warping, or if the HUD is frozen or hidden, as this can cause visual issues
+            if (Game1.eventUp || Game1.isWarping || Game1.viewportFreeze || Game1.displayHUD == false) return;
+
+            // Calculate the final factor to apply to the ambient light based on the user's desired darkness percentage and the current darkness intensity
+            float finalFactor = 1f + (userFactor - 1f) * darknessIntensity;
+
+            // Multiply the current ambient light by the factor to get the new ambient light color
+            Color adjustedLight = new Color(
+                (byte)(baseLight.R * finalFactor),
+                (byte)(baseLight.G * finalFactor),
+                (byte)(baseLight.B * finalFactor),
+                baseLight.A // Don't change the transparency
+            );
+
+            Game1.outdoorLight = adjustedLight;
+            Game1.ambientLight = adjustedLight;
         }
 
         private void GameLaunched(object sender, GameLaunchedEventArgs e) {
@@ -145,6 +179,17 @@ namespace NightLight
                 tooltip: () => "Enables NightLight",
                 getValue: () => this.Config.NightLightEnabled,
                 setValue: value => this.Config.NightLightEnabled = value
+            );
+
+            configMenu.AddNumberOption(
+                mod: this.ModManifest,
+                getValue: () => (float)this.Config.DarknessPercentage,
+                setValue: value => this.Config.DarknessPercentage = (int)value,
+                name: () => "Darkness",
+                tooltip: () => "Changes how much darkness to retain at night time (100 is default night)",
+                min: 0f,
+                max: 100f,
+                interval:1f
             );
 
             // Section Title For Areas
