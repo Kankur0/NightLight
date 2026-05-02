@@ -1,5 +1,5 @@
 # NightLight
-This Stardew Valley mod allows the player to view the valley as if it were daytime at all times. Also removed the darkness from the mines, which is most notable on floors 30-39 of the regular mines.
+This Stardew Valley mod allows the player to adjust the darkness of night in various areas where it becomes dark such as outdoors, the mines (most notable on floors 30-39 of the regular mines), the farm cave, the farmhouse, etc.
 
 ## Requirements:
 - Stardew Valley 1.6+
