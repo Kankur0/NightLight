@@ -9,18 +9,18 @@ using StardewValley;
 namespace NightLight
 {
     /// <summary>The mod entry point.</summary>
-    internal sealed class ModEntry : Mod
-    {
+    internal sealed class ModEntry : Mod {
         // Initialize the GMCM object
         private ModConfig Config = new();
+
+        private Color _vanillaAmbientLight;
 
         /*********
         ** Public methods
         *********/
         // <summary>The mod entry point, called after the mod is first loaded.</summary>
         // <param name="helper">Provides simplified APIs for writing mods.</param>
-        public override void Entry(IModHelper helper)
-        {
+        public override void Entry(IModHelper helper) {
 
             // Set the mod's config
             Config = helper.ReadConfig<ModConfig>();
@@ -28,18 +28,27 @@ namespace NightLight
             // Set up events
             helper.Events.GameLoop.GameLaunched += GameLaunched;
             helper.Events.Input.ButtonsChanged += ButtonsChanged;
+            helper.Events.GameLoop.UpdateTicking += OnUpdateTicking;
             helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
         }
 
-        private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
-        {
+        private void OnUpdateTicking(object? sender, UpdateTickingEventArgs e) {
+           if (!Context.IsWorldReady) return;
+
+           if(_vanillaAmbientLight != default) {
+                Game1.ambientLight = _vanillaAmbientLight;
+           }
+        }
+
+        private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e) {
             if (!Context.IsWorldReady) return;
+
+            _vanillaAmbientLight = Game1.ambientLight;
 
             if (Config.NightLightEnabled) {
                 handleLighting();
             }
         }
-
 
         /*********
         ** Private methods
@@ -112,15 +121,13 @@ namespace NightLight
         private void handleUnderground()
         {
             // Toggle lighting within the mines and farm cave
-            if (Game1.currentLocation.Name.StartsWith("UndergroundMine") || Game1.currentLocation.Name == "FarmCave")
-            {
+            if (Game1.currentLocation.Name.StartsWith("UndergroundMine") || Game1.currentLocation.Name == "FarmCave") {
                 Game1.drawLighting = false;
             }
         }
 
         private void applyLighting() {
-            // Get the base light color so we can apply the darkness factor to it, but only at night
-            Color baseLight = Game1.outdoorLight.A > 0 ? Game1.outdoorLight : Game1.ambientLight;
+            Color baseLight = _vanillaAmbientLight;
             // Calculate the intensity of the darkness with a value between 0 and 1, where 0 is daytime and 1 is the darkest night
             float darknessIntensity = baseLight.A / 255f;
             // Convert the user's preferred to a percentage factor where 1 is the default night and 0 is no darkness at all
@@ -134,6 +141,10 @@ namespace NightLight
 
             // Calculate the final factor to apply to the ambient light based on the user's desired darkness percentage and the current darkness intensity
             float finalFactor = 1f + (userFactor - 1f) * darknessIntensity;
+
+            if (Game1.isRaining || Game1.isLightning || Game1.isSnowing) {
+                finalFactor = MathHelper.Clamp(finalFactor, 0.5f, 1.5f);
+            }
 
             // Multiply the base light color by the final factor to get the adjusted light color, while ensuring that the RGB values don't exceed 255
             Color adjustedLight = new Color(
