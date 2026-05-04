@@ -13,7 +13,8 @@ namespace NightLight
         // Initialize the GMCM object
         private ModConfig Config = new();
 
-        private Color _vanillaAmbientLight;
+        private Color _vanillaAmbientLight; // Indoor Light
+        private Color _vanillaOutdoorLight; // Outdoor Light
 
         /*********
         ** Public methods
@@ -35,15 +36,21 @@ namespace NightLight
         private void OnUpdateTicking(object? sender, UpdateTickingEventArgs e) {
            if (!Context.IsWorldReady) return;
 
+           // Set the indoor lighting to the vanilla lighting to prevent the indoor lighting stacking on top of itself.
            if(_vanillaAmbientLight != default) {
                 Game1.ambientLight = _vanillaAmbientLight;
            }
+            // Set the outdoor lighting to the vanilla lighting to prevent the outdoor lighting stacking on top of itself.
+            if (_vanillaOutdoorLight != default) {
+                Game1.outdoorLight = _vanillaOutdoorLight;
+            }
         }
 
         private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e) {
             if (!Context.IsWorldReady) return;
 
-            _vanillaAmbientLight = Game1.ambientLight;
+            _vanillaAmbientLight = Game1.ambientLight; // Save the vanilla indoor light
+            _vanillaOutdoorLight = Game1.outdoorLight; // Save the vanilla outdoor light
 
             if (Config.NightLightEnabled) {
                 handleLighting();
@@ -114,7 +121,7 @@ namespace NightLight
             bool isIndoors = !isOutdoors && !isUnderground;
 
             if ((this.Config.NightLightOutdoors && isOutdoors) || (this.Config.NightLightIndoors && isIndoors)) {
-                applyLighting();
+                applyLighting(isOutdoors);
             }
         }
 
@@ -126,8 +133,8 @@ namespace NightLight
             }
         }
 
-        private void applyLighting() {
-            Color baseLight = _vanillaAmbientLight;
+        private void applyLighting(bool isOutdoors) {
+            Color baseLight = isOutdoors ? _vanillaOutdoorLight : _vanillaOutdoorLight;
             // Calculate the intensity of the darkness with a value between 0 and 1, where 0 is daytime and 1 is the darkest night
             float darknessIntensity = baseLight.A / 255f;
             // Convert the user's preferred to a percentage factor where 1 is the default night and 0 is no darkness at all
@@ -136,8 +143,8 @@ namespace NightLight
             // If it is daytime, don't apply any changes to the ambient light
             if (darknessIntensity < 0.01f) return;
 
-            // Don't apply changes to the ambient light if the player is in a cutscene, warping, or if the HUD is frozen or hidden, as this can cause visual issues
-            if (Game1.eventUp || Game1.isWarping || Game1.viewportFreeze) return;
+            // Don't apply changes to the ambient light if the player is warping or if the HUD is frozen or hidden, as this can cause visual issues
+            if (Game1.isWarping || Game1.viewportFreeze) return;
 
             // Calculate the final factor to apply to the ambient light based on the user's desired darkness percentage and the current darkness intensity
             float finalFactor = 1f + (userFactor - 1f) * darknessIntensity;
@@ -154,8 +161,13 @@ namespace NightLight
                 baseLight.A // Don't change the transparency
             );
 
-            // Apply the adjusted light color to the ambient light
-            Game1.ambientLight = adjustedLight;
+            // Apply the adjusted light to either the outdoor or indoor light depending on the player's location
+            if (isOutdoors) { 
+                Game1.outdoorLight = adjustedLight;
+            }
+            else {
+                Game1.ambientLight = adjustedLight;
+            }
         }
 
         private void GameLaunched(object sender, GameLaunchedEventArgs e) {
