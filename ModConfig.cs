@@ -6,6 +6,7 @@ namespace NightLight
     {
         public bool NightLightEnabled { get; set; } = true;
         public int DarknessPercentage { get; set; } = 50;
+        public bool ApplyInCutscenes { get; set; } = false;
         public bool NightLightOutdoors {  get; set; } = true;
         public bool NightLightUnderground { get; set; } = true;
         public bool NightLightIndoors { get; set; } = true;

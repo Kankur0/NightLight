@@ -1,10 +1,11 @@
-﻿using System;
-using GenericModConfigMenu;
+﻿using GenericModConfigMenu;
 using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
 using StardewValley;
+using System;
+using System.Xml.Linq;
 
 namespace NightLight
 {
@@ -115,13 +116,17 @@ namespace NightLight
                 handleUnderground();
             }
 
-            var location = Game1.currentLocation;
+            var location = Game1.currentLocation; // Get the player's current location
+
+            if (location == null) return; //prevent potential null reference exceptions that can cause crashes
+
             bool isOutdoors = location.IsOutdoors;
             bool isUnderground = location.Name.StartsWith("UndergroundMine") || location.Name == "FarmCave";
             bool isIndoors = !isOutdoors && !isUnderground;
+            bool isIsland = location.Name.StartsWith("Island", StringComparison.OrdinalIgnoreCase);
 
-            if ((this.Config.NightLightOutdoors && isOutdoors) || (this.Config.NightLightIndoors && isIndoors)) {
-                applyLighting(isOutdoors);
+            if (isIsland || (this.Config.NightLightOutdoors && isOutdoors) || (this.Config.NightLightIndoors && isIndoors)) {
+                applyLighting(isOutdoors || isIsland);
             }
         }
 
@@ -134,7 +139,7 @@ namespace NightLight
         }
 
         private void applyLighting(bool isOutdoors) {
-            Color baseLight = isOutdoors ? _vanillaOutdoorLight : _vanillaOutdoorLight;
+            Color baseLight = isOutdoors ? _vanillaOutdoorLight : _vanillaAmbientLight;
             // Calculate the intensity of the darkness with a value between 0 and 1, where 0 is daytime and 1 is the darkest night
             float darknessIntensity = baseLight.A / 255f;
             // Convert the user's preferred to a percentage factor where 1 is the default night and 0 is no darkness at all
@@ -143,8 +148,18 @@ namespace NightLight
             // If it is daytime, don't apply any changes to the ambient light
             if (darknessIntensity < 0.01f) return;
 
-            // Don't apply changes to the ambient light if the player is warping or if the HUD is frozen or hidden, as this can cause visual issues
-            if (Game1.isWarping || Game1.viewportFreeze) return;
+            if (Game1.eventUp && !Config.ApplyInCutscenes) return; // Only apply lighting adjustments in cutscenes if the player enabled it
+
+            // Make Ginger Island slightly brighter at night and much brighter while in the Jungle & Shrine
+            string location = Game1.currentLocation?.Name ?? "";
+
+            if(location.StartsWith("Island", StringComparison.OrdinalIgnoreCase)) {
+                if (location.Contains("East") || location.Contains("Shrine")) {
+                    userFactor *= 0.5f; // Decrease darkness by 50% in the Jungle
+                } else {
+                    userFactor *= 0.85f; // Decrease darkness by 15% in the rest of Ginger Island
+                }
+            }
 
             // Calculate the final factor to apply to the ambient light based on the user's desired darkness percentage and the current darkness intensity
             float finalFactor = 1f + (userFactor - 1f) * darknessIntensity;
@@ -161,8 +176,13 @@ namespace NightLight
                 baseLight.A // Don't change the transparency
             );
 
-            // Apply the adjusted light to either the outdoor or indoor light depending on the player's location
-            if (isOutdoors) { 
+            // If on Ginger Island, apply the adjusted light to both outdoor and indoor lighting
+            if(location.StartsWith("Island")) {
+                Game1.outdoorLight = adjustedLight;
+                Game1.ambientLight = adjustedLight;
+            } else if (isOutdoors) {
+
+                // Apply the adjusted light to either the outdoor or indoor light depending on the player's location
                 Game1.outdoorLight = adjustedLight;
             }
             else {
@@ -204,6 +224,14 @@ namespace NightLight
                 min: 0f,
                 max: 100f,
                 interval:1f
+            );
+
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Apply In Cutscenes",
+                tooltip: () => "Applies the darkness setting during cutscenes. This can cause visual issues in some cutscenes, so it is disabled by default.",
+                getValue: () => this.Config.ApplyInCutscenes,
+                setValue: value => this.Config.ApplyInCutscenes = value
             );
 
             // Section Title For Areas
