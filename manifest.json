@@ -1,7 +1,7 @@
 {
   "Name": "NightLight",
   "Author": "kankur0",
-  "Version": "1.2.2",
+  "Version": "1.3.0",
   "Description": "Allows you to adjust the darkness during night in various areas.",
   "UniqueID": "kankur0.nightlight",
   "EntryDll": "nightlight.dll",
