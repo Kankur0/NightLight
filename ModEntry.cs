@@ -16,6 +16,7 @@ namespace NightLight
 
         private Color _vanillaAmbientLight; // Indoor Light
         private Color _vanillaOutdoorLight; // Outdoor Light
+        private readonly string[] SpecialOutdoorLocations = { "Island", "Woods" }; //Special outdoor locations
 
         /*********
         ** Public methods
@@ -123,10 +124,20 @@ namespace NightLight
             bool isOutdoors = location.IsOutdoors;
             bool isUnderground = location.Name.StartsWith("UndergroundMine") || location.Name == "FarmCave";
             bool isIndoors = !isOutdoors && !isUnderground;
-            bool isIsland = location.Name.StartsWith("Island", StringComparison.OrdinalIgnoreCase);
+            bool isSpecial = false;
 
-            if (isIsland || (this.Config.NightLightOutdoors && isOutdoors) || (this.Config.NightLightIndoors && isIndoors)) {
-                applyLighting(isOutdoors || isIsland);
+            // Loop through the array of special locations to check if the player's current location is one of them
+            foreach (string specialL in SpecialOutdoorLocations) {
+                if (location.Name.StartsWith(specialL, StringComparison.OrdinalIgnoreCase)) {
+                    isSpecial = true;
+                    break;
+                }
+                
+            }
+
+            // Check if it is a special location or if the player is outdoors/indoors and has those areas enabled in the config
+            if ((this.Config.NightLightOutdoors && (isOutdoors || isSpecial)) || (this.Config.NightLightIndoors && isIndoors)) {
+                applyLighting(isOutdoors || isSpecial);
             }
         }
 
@@ -138,8 +149,8 @@ namespace NightLight
             }
         }
 
-        private void applyLighting(bool isOutdoors) {
-            Color baseLight = isOutdoors ? _vanillaOutdoorLight : _vanillaAmbientLight;
+        private void applyLighting(bool useOutdoorBaseLighting) {
+            Color baseLight = useOutdoorBaseLighting ? _vanillaOutdoorLight : _vanillaAmbientLight;
             // Calculate the intensity of the darkness with a value between 0 and 1, where 0 is daytime and 1 is the darkest night
             float darknessIntensity = baseLight.A / 255f;
             // Convert the user's preferred to a percentage factor where 1 is the default night and 0 is no darkness at all
@@ -153,11 +164,11 @@ namespace NightLight
             // Make Ginger Island slightly brighter at night and much brighter while in the Jungle & Shrine
             string location = Game1.currentLocation?.Name ?? "";
 
-            if(location.StartsWith("Island", StringComparison.OrdinalIgnoreCase)) {
+            if(location.StartsWith("Island", StringComparison.OrdinalIgnoreCase) || location.StartsWith("Woods", StringComparison.OrdinalIgnoreCase)) {
                 if (location.Contains("East") || location.Contains("Shrine")) {
                     userFactor *= 0.5f; // Decrease darkness by 50% in the Jungle
                 } else {
-                    userFactor *= 0.85f; // Decrease darkness by 15% in the rest of Ginger Island
+                    userFactor *= 0.85f; // Decrease darkness by 15% in areas of Ginger Island outside of the Jungle and Shrine
                 }
             }
 
@@ -177,10 +188,11 @@ namespace NightLight
             );
 
             // If on Ginger Island, apply the adjusted light to both outdoor and indoor lighting
-            if(location.StartsWith("Island")) {
+            if(location.StartsWith("Island", StringComparison.OrdinalIgnoreCase) || location.StartsWith("Woods")) {
+                // Apply both indoor and outdoor lighting changes to make this area brighter at night
                 Game1.outdoorLight = adjustedLight;
                 Game1.ambientLight = adjustedLight;
-            } else if (isOutdoors) {
+            } else if (useOutdoorBaseLighting) {
 
                 // Apply the adjusted light to either the outdoor or indoor light depending on the player's location
                 Game1.outdoorLight = adjustedLight;
